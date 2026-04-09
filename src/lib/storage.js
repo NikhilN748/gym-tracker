@@ -36,6 +36,9 @@ export function removeItem(key) {
 export function getAllData() {
   const data = {};
   Object.values(StorageKeys).forEach((key) => {
+    if (key === StorageKeys.PHOTOS) {
+      return;
+    }
     data[key] = getItem(key);
   });
   return data;

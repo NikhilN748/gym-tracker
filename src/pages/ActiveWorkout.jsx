@@ -1,8 +1,8 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Plus, Trash2, Check, Clock, Weight, Hash, MoreVertical,
-  ChevronDown, MessageSquare, Calculator, Flame, X, Link
+  MessageSquare, Calculator, Flame, X, Link
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import ExercisePicker from '../components/ExercisePicker';
@@ -34,18 +34,18 @@ export default function ActiveWorkout() {
   const [menuOpen, setMenuOpen] = useState(null);
   const [notesOpen, setNotesOpen] = useState(null);
 
-  // Timer
   useEffect(() => {
-    if (!activeWorkout) return;
+    if (!activeWorkout) return undefined;
+
     const update = () => {
       setElapsed(Math.floor((Date.now() - new Date(activeWorkout.startedAt).getTime()) / 1000));
     };
-    update();
-    const iv = setInterval(update, 1000);
-    return () => clearInterval(iv);
-  }, [activeWorkout?.startedAt]);
 
-  // Redirect if no active workout
+    update();
+    const intervalId = setInterval(update, 1000);
+    return () => clearInterval(intervalId);
+  }, [activeWorkout, navigate]);
+
   useEffect(() => {
     if (!activeWorkout) navigate('/');
   }, [activeWorkout, navigate]);
@@ -53,43 +53,42 @@ export default function ActiveWorkout() {
   if (!activeWorkout) return null;
 
   const totalVolume = activeWorkout.exercises.reduce((sum, ex) =>
-    sum + ex.sets.reduce((sSum, s) => sSum + (s.completed ? setVolume(s) : 0), 0), 0);
+    sum + ex.sets.reduce((setSum, set) => setSum + (set.completed ? setVolume(set) : 0), 0), 0);
 
   const completedSets = activeWorkout.exercises.reduce((sum, ex) =>
-    sum + ex.sets.filter((s) => s.completed).length, 0);
+    sum + ex.sets.filter((set) => set.completed).length, 0);
 
-  const toggleSetType = (exEntryId, setId, currentType) => {
+  const toggleSetType = (exerciseEntryId, setId, currentType) => {
     const currentIdx = SET_TYPE_ORDER.indexOf(currentType);
     const nextType = SET_TYPE_ORDER[(currentIdx + 1) % SET_TYPE_ORDER.length];
-    updateSet(exEntryId, setId, { type: nextType });
+    updateSet(exerciseEntryId, setId, { type: nextType });
   };
 
-  const handleComplete = (exEntryId, setId, exerciseId, weight, reps, type) => {
-    const w = Number(weight);
-    const r = Number(reps);
-    updateSet(exEntryId, setId, { completed: true });
-    // Check PR
-    if (w && r && type !== 'warmup') {
-      const prTypes = checkPR(exerciseId, w, r);
+  const handleComplete = (exerciseEntryId, setId, exerciseId, weight, reps, type) => {
+    const normalizedWeight = Number(weight);
+    const normalizedReps = Number(reps);
+    updateSet(exerciseEntryId, setId, { completed: true });
+
+    if (normalizedWeight && normalizedReps && type !== 'warmup') {
+      const prTypes = checkPR(exerciseId, normalizedWeight, normalizedReps);
       if (prTypes.length > 0) {
         const id = Date.now();
-        setToasts((prev) => [...prev, { id, message: `New ${prTypes.join(' & ')} PR! 🎉`, type: 'pr' }]);
+        setToasts((prev) => [...prev, { id, message: `New ${prTypes.join(' & ')} PR!`, type: 'pr' }]);
       }
-      // Trigger rest timer
       setShowRestTimer(true);
     }
   };
 
-  const handleUncomplete = (exEntryId, setId) => {
-    updateSet(exEntryId, setId, { completed: false });
+  const handleUncomplete = (exerciseEntryId, setId) => {
+    updateSet(exerciseEntryId, setId, { completed: false });
   };
 
-  const copyPrevious = (exEntryId, setId, exerciseId, setIdx) => {
+  const copyPrevious = (exerciseEntryId, setId, exerciseId, setIndex) => {
     const prevData = getPreviousExerciseData(exerciseId);
-    if (prevData && prevData[setIdx]) {
-      updateSet(exEntryId, setId, {
-        weight: prevData[setIdx].weight,
-        reps: prevData[setIdx].reps,
+    if (prevData && prevData[setIndex]) {
+      updateSet(exerciseEntryId, setId, {
+        weight: prevData[setIndex].weight,
+        reps: prevData[setIndex].reps,
       });
     }
   };
@@ -110,11 +109,11 @@ export default function ActiveWorkout() {
     updateActiveWorkout({ ...activeWorkout, notes });
   };
 
-  const updateExerciseNotes = (exEntryId, notes) => {
+  const updateExerciseNotes = (exerciseEntryId, notes) => {
     updateActiveWorkout({
       ...activeWorkout,
-      exercises: activeWorkout.exercises.map((ex) =>
-        ex.id === exEntryId ? { ...ex, notes } : ex
+      exercises: activeWorkout.exercises.map((exercise) =>
+        exercise.id === exerciseEntryId ? { ...exercise, notes } : exercise
       ),
     });
   };
@@ -125,17 +124,16 @@ export default function ActiveWorkout() {
 
   return (
     <div className="space-y-4 pb-4">
-      {/* Header */}
       <div className="flex items-center justify-between pt-2">
         <input
           className="text-xl font-bold bg-transparent border-none focus:outline-none w-full"
           value={activeWorkout.name}
           onChange={(e) => updateWorkoutName(e.target.value)}
           id="workout-name-input"
+          aria-label="Workout name"
         />
       </div>
 
-      {/* Live Stats */}
       <div className="grid grid-cols-3 gap-2">
         <div className="bg-brand-50 dark:bg-brand-950/50 rounded-xl px-3 py-2 text-center">
           <div className="text-xs text-brand-600 dark:text-brand-400 flex items-center justify-center gap-1"><Clock size={12} /> Duration</div>
@@ -151,7 +149,6 @@ export default function ActiveWorkout() {
         </div>
       </div>
 
-      {/* Workout Notes */}
       <textarea
         className="input text-sm resize-none"
         rows={2}
@@ -159,19 +156,19 @@ export default function ActiveWorkout() {
         value={activeWorkout.notes || ''}
         onChange={(e) => updateWorkoutNotes(e.target.value)}
         id="workout-notes"
+        aria-label="Workout notes"
       />
 
-      {/* Exercises */}
-      {activeWorkout.exercises.map((ex, exIdx) => {
-        const info = exMap[ex.exerciseId];
-        const prevData = getPreviousExerciseData(ex.exerciseId);
-        const isSuperset = ex.supersetGroup != null;
+      {activeWorkout.exercises.map((exercise, exerciseIndex) => {
+        const info = exMap[exercise.exerciseId];
+        const prevData = getPreviousExerciseData(exercise.exerciseId);
+        const isSuperset = exercise.supersetGroup != null;
 
         return (
           <div
-            key={ex.id}
+            key={exercise.id}
             className={`card ${isSuperset ? 'border-l-4 border-l-purple-500' : ''}`}
-            id={`workout-exercise-${exIdx}`}
+            id={`workout-exercise-${exerciseIndex}`}
           >
             {isSuperset && (
               <div className="text-[10px] font-bold text-purple-500 uppercase tracking-wider mb-1">Superset</div>
@@ -182,18 +179,23 @@ export default function ActiveWorkout() {
                 <div className="text-xs text-gray-400">{info?.muscle}</div>
               </div>
               <div className="relative">
-                <button onClick={() => setMenuOpen(menuOpen === ex.id ? null : ex.id)} className="p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800" id={`exercise-menu-${exIdx}`}>
+                <button
+                  onClick={() => setMenuOpen(menuOpen === exercise.id ? null : exercise.id)}
+                  className="p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800"
+                  id={`exercise-menu-${exerciseIndex}`}
+                  aria-label={`Open actions for ${info?.name || 'exercise'}`}
+                >
                   <MoreVertical size={16} className="text-gray-400" />
                 </button>
-                {menuOpen === ex.id && (
+                {menuOpen === exercise.id && (
                   <div className="absolute right-0 top-8 bg-white dark:bg-gray-800 rounded-xl shadow-xl border border-gray-200 dark:border-gray-700 py-1 z-50 min-w-[160px]">
-                    <button onClick={() => { setNotesOpen(notesOpen === ex.id ? null : ex.id); setMenuOpen(null); }} className="w-full text-left px-3 py-2 text-sm hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center gap-2">
+                    <button onClick={() => { setNotesOpen(notesOpen === exercise.id ? null : exercise.id); setMenuOpen(null); }} className="w-full text-left px-3 py-2 text-sm hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center gap-2">
                       <MessageSquare size={14} /> Notes
                     </button>
-                    <button onClick={() => { toggleSuperset(ex.id); setMenuOpen(null); }} className="w-full text-left px-3 py-2 text-sm hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center gap-2">
+                    <button onClick={() => { toggleSuperset(exercise.id); setMenuOpen(null); }} className="w-full text-left px-3 py-2 text-sm hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center gap-2">
                       <Link size={14} /> {isSuperset ? 'Remove Superset' : 'Superset with next'}
                     </button>
-                    <button onClick={() => { removeExerciseFromWorkout(ex.id); setMenuOpen(null); }} className="w-full text-left px-3 py-2 text-sm text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 flex items-center gap-2">
+                    <button onClick={() => { removeExerciseFromWorkout(exercise.id); setMenuOpen(null); }} className="w-full text-left px-3 py-2 text-sm text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 flex items-center gap-2">
                       <Trash2 size={14} /> Remove
                     </button>
                   </div>
@@ -201,84 +203,88 @@ export default function ActiveWorkout() {
               </div>
             </div>
 
-            {/* Exercise notes */}
-            {notesOpen === ex.id && (
+            {notesOpen === exercise.id && (
               <textarea
                 className="input text-xs resize-none mb-2"
                 rows={2}
                 placeholder="Exercise notes..."
-                value={ex.notes || ''}
-                onChange={(e) => updateExerciseNotes(ex.id, e.target.value)}
+                value={exercise.notes || ''}
+                onChange={(e) => updateExerciseNotes(exercise.id, e.target.value)}
+                aria-label={`Notes for ${info?.name || 'exercise'}`}
               />
             )}
 
-            {/* Set header */}
             <div className="grid grid-cols-[36px_52px_1fr_1fr_48px_36px] gap-1 text-[10px] text-gray-400 font-medium px-1 mb-1 uppercase tracking-wider">
               <span>Set</span>
               <span>Prev</span>
               <span>Weight</span>
               <span>Reps</span>
               <span>RPE</span>
-              <span className="text-center">✓</span>
+              <span className="text-center">Done</span>
             </div>
 
-            {/* Sets */}
-            {ex.sets.map((s, setIdx) => {
-              const prevSet = prevData?.[setIdx];
-              const typeInfo = SET_TYPES[s.type];
+            {exercise.sets.map((set, setIndex) => {
+              const prevSet = prevData?.[setIndex];
+              const typeInfo = SET_TYPES[set.type];
               return (
                 <div
-                  key={s.id}
-                  className={`grid grid-cols-[36px_52px_1fr_1fr_48px_36px] gap-1 items-center py-1.5 rounded-lg ${s.completed ? 'bg-green-50 dark:bg-green-950/30' : ''}`}
+                  key={set.id}
+                  className={`grid grid-cols-[36px_52px_1fr_1fr_48px_36px] gap-1 items-center py-1.5 rounded-lg ${set.completed ? 'bg-green-50 dark:bg-green-950/30' : ''}`}
                 >
                   <button
-                    onClick={() => toggleSetType(ex.id, s.id, s.type)}
+                    onClick={() => toggleSetType(exercise.id, set.id, set.type)}
                     className={`text-[10px] font-bold px-1 py-0.5 rounded-md ${typeInfo.colorClass} text-center`}
                     title={typeInfo.label}
+                    aria-label={`Set ${set.setNumber} type ${typeInfo.label}`}
                   >
-                    {s.setNumber}{typeInfo.short !== 'N' ? typeInfo.short : ''}
+                    {set.setNumber}{typeInfo.short !== 'N' ? typeInfo.short : ''}
                   </button>
                   <button
-                    onClick={() => copyPrevious(ex.id, s.id, ex.exerciseId, setIdx)}
+                    onClick={() => copyPrevious(exercise.id, set.id, exercise.exerciseId, setIndex)}
                     className="text-[10px] text-gray-400 truncate text-left hover:text-brand-500"
                     title="Tap to copy previous"
+                    aria-label={`Copy previous values for set ${set.setNumber}`}
                   >
-                    {prevSet ? `${prevSet.weight}×${prevSet.reps}` : '—'}
+                    {prevSet ? `${prevSet.weight}x${prevSet.reps}` : '-'}
                   </button>
                   <input
                     type="number"
                     className="input-sm text-xs"
-                    placeholder="—"
-                    value={s.weight}
-                    onChange={(e) => updateSet(ex.id, s.id, { weight: e.target.value })}
+                    placeholder="-"
+                    value={set.weight}
+                    onChange={(e) => updateSet(exercise.id, set.id, { weight: e.target.value })}
+                    aria-label={`Weight for set ${set.setNumber}`}
                   />
                   <input
                     type="number"
                     className="input-sm text-xs"
-                    placeholder="—"
-                    value={s.reps}
-                    onChange={(e) => updateSet(ex.id, s.id, { reps: e.target.value })}
+                    placeholder="-"
+                    value={set.reps}
+                    onChange={(e) => updateSet(exercise.id, set.id, { reps: e.target.value })}
+                    aria-label={`Reps for set ${set.setNumber}`}
                   />
                   <input
                     type="number"
                     className="input-sm text-xs"
-                    placeholder="—"
+                    placeholder="-"
                     step="0.5"
                     min="0"
                     max="10"
-                    value={s.rpe}
-                    onChange={(e) => updateSet(ex.id, s.id, { rpe: e.target.value })}
+                    value={set.rpe}
+                    onChange={(e) => updateSet(exercise.id, set.id, { rpe: e.target.value })}
+                    aria-label={`RPE for set ${set.setNumber}`}
                   />
                   <button
                     onClick={() => {
-                      if (s.completed) {
-                        handleUncomplete(ex.id, s.id);
+                      if (set.completed) {
+                        handleUncomplete(exercise.id, set.id);
                       } else {
-                        handleComplete(ex.id, s.id, ex.exerciseId, s.weight, s.reps, s.type);
+                        handleComplete(exercise.id, set.id, exercise.exerciseId, set.weight, set.reps, set.type);
                       }
                     }}
-                    className={`w-8 h-8 rounded-lg flex items-center justify-center transition-all ${s.completed ? 'bg-green-500 text-white' : 'bg-gray-100 dark:bg-gray-800 text-gray-400 hover:bg-green-100 dark:hover:bg-green-900/30'}`}
-                    id={`complete-set-${exIdx}-${setIdx}`}
+                    className={`w-8 h-8 rounded-lg flex items-center justify-center transition-all ${set.completed ? 'bg-green-500 text-white' : 'bg-gray-100 dark:bg-gray-800 text-gray-400 hover:bg-green-100 dark:hover:bg-green-900/30'}`}
+                    id={`complete-set-${exerciseIndex}-${setIndex}`}
+                    aria-label={set.completed ? `Mark set ${set.setNumber} incomplete` : `Mark set ${set.setNumber} complete`}
                   >
                     <Check size={16} />
                   </button>
@@ -286,15 +292,15 @@ export default function ActiveWorkout() {
               );
             })}
 
-            {/* Add set + Remove set */}
             <div className="flex gap-2 mt-2">
-              <button onClick={() => addSetToExercise(ex.id)} className="btn-ghost text-xs flex-1">
+              <button onClick={() => addSetToExercise(exercise.id)} className="btn-ghost text-xs flex-1">
                 <Plus size={14} /> Add Set
               </button>
-              {ex.sets.length > 0 && (
+              {exercise.sets.length > 0 && (
                 <button
-                  onClick={() => removeSetFromExercise(ex.id, ex.sets[ex.sets.length - 1].id)}
+                  onClick={() => removeSetFromExercise(exercise.id, exercise.sets[exercise.sets.length - 1].id)}
                   className="btn-ghost text-xs text-red-400"
+                  aria-label={`Remove last set from ${info?.name || 'exercise'}`}
                 >
                   <Trash2 size={14} />
                 </button>
@@ -304,12 +310,10 @@ export default function ActiveWorkout() {
         );
       })}
 
-      {/* Add exercise */}
       <button onClick={() => setShowPicker(true)} className="btn-secondary w-full" id="add-exercise-to-workout">
         <Plus size={16} /> Add Exercise
       </button>
 
-      {/* Tools */}
       <div className="flex gap-2">
         <button onClick={() => setShowPlateCalc(true)} className="btn-ghost flex-1 text-xs" id="open-plate-calc">
           <Calculator size={14} /> Plates
@@ -322,23 +326,20 @@ export default function ActiveWorkout() {
         </button>
       </div>
 
-      {/* Finish / Discard */}
       <div className="flex gap-2">
         <button onClick={() => setShowFinishModal(true)} className="btn-primary flex-1" id="finish-workout-btn">
           <Check size={16} /> Finish
         </button>
-        <button onClick={() => setShowDiscardModal(true)} className="btn-ghost text-red-500" id="discard-workout-btn">
+        <button onClick={() => setShowDiscardModal(true)} className="btn-ghost text-red-500" id="discard-workout-btn" aria-label="Discard active workout">
           <X size={16} />
         </button>
       </div>
 
-      {/* Modals */}
       <ExercisePicker isOpen={showPicker} onClose={() => setShowPicker(false)} onSelect={(id) => addExerciseToWorkout(id)} />
       <RestTimer isOpen={showRestTimer} onClose={() => setShowRestTimer(false)} defaultSeconds={settings.defaultRestSeconds} />
       <PlateCalculator isOpen={showPlateCalc} onClose={() => setShowPlateCalc(false)} />
       <WarmupCalculator isOpen={showWarmupCalc} onClose={() => setShowWarmupCalc(false)} />
 
-      {/* Finish Confirmation */}
       <Modal isOpen={showFinishModal} onClose={() => setShowFinishModal(false)} title="Finish Workout" size="sm">
         <p className="text-sm text-gray-600 dark:text-gray-400 mb-1">Incomplete sets will be removed.</p>
         <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">Duration: {fmtClock(elapsed)}</p>
@@ -348,7 +349,6 @@ export default function ActiveWorkout() {
         </div>
       </Modal>
 
-      {/* Discard Confirmation */}
       <Modal isOpen={showDiscardModal} onClose={() => setShowDiscardModal(false)} title="Discard Workout" size="sm">
         <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">Are you sure? All progress will be lost.</p>
         <div className="flex gap-2">
@@ -357,9 +357,8 @@ export default function ActiveWorkout() {
         </div>
       </Modal>
 
-      {/* PR Toasts */}
-      {toasts.map((t) => (
-        <Toast key={t.id} message={t.message} type={t.type} onDone={() => setToasts((prev) => prev.filter((x) => x.id !== t.id))} />
+      {toasts.map((toast) => (
+        <Toast key={toast.id} message={toast.message} type={toast.type} onDone={() => setToasts((prev) => prev.filter((item) => item.id !== toast.id))} />
       ))}
     </div>
   );

@@ -1,66 +1,13 @@
 import React, { createContext, useContext, useReducer, useEffect, useCallback, useRef } from 'react';
-import { getItem, setItem, removeItem, StorageKeys } from '../lib/storage';
-import { defaultExercises } from '../data/exercises';
-import { uid, epley1RM, setVolume } from '../lib/utils';
+import { removeItem, setItem, StorageKeys } from '../lib/storage';
+import { getAllPhotos, replaceAllPhotos } from '../lib/photoStorage';
+import { appReducer, loadInitialState } from './appState';
+import { uid, epley1RM } from '../lib/utils';
 
 const AppContext = createContext(null);
 
-const DEFAULT_SETTINGS = {
-  unit: 'lb',
-  darkMode: false,
-  defaultRestSeconds: 90,
-  barWeight: 45,
-  barWeightKg: 20,
-  vibrateOnRest: true,
-};
-
-function loadInitialState() {
-  const savedExercises = getItem(StorageKeys.EXERCISES);
-  if (!savedExercises) {
-    setItem(StorageKeys.EXERCISES, defaultExercises);
-  }
-  return {
-    exercises: savedExercises || defaultExercises,
-    customExercises: getItem(StorageKeys.CUSTOM_EXERCISES) || [],
-    routines: getItem(StorageKeys.ROUTINES) || [],
-    workouts: getItem(StorageKeys.WORKOUTS) || [],
-    activeWorkout: getItem(StorageKeys.ACTIVE_WORKOUT) || null,
-    settings: { ...DEFAULT_SETTINGS, ...(getItem(StorageKeys.SETTINGS) || {}) },
-    measurements: getItem(StorageKeys.MEASUREMENTS) || [],
-    photos: getItem(StorageKeys.PHOTOS) || [],
-    personalRecords: getItem(StorageKeys.PERSONAL_RECORDS) || {},
-  };
-}
-
-function reducer(state, action) {
-  switch (action.type) {
-    case 'SET_STATE':
-      return { ...state, ...action.payload };
-    case 'SET_SETTINGS':
-      return { ...state, settings: { ...state.settings, ...action.payload } };
-    case 'SET_ACTIVE_WORKOUT':
-      return { ...state, activeWorkout: action.payload };
-    case 'SET_ROUTINES':
-      return { ...state, routines: action.payload };
-    case 'SET_WORKOUTS':
-      return { ...state, workouts: action.payload };
-    case 'SET_MEASUREMENTS':
-      return { ...state, measurements: action.payload };
-    case 'SET_PHOTOS':
-      return { ...state, photos: action.payload };
-    case 'SET_PERSONAL_RECORDS':
-      return { ...state, personalRecords: action.payload };
-    case 'SET_CUSTOM_EXERCISES':
-      return { ...state, customExercises: action.payload };
-    case 'RELOAD_ALL':
-      return loadInitialState();
-    default:
-      return state;
-  }
-}
-
 export function AppProvider({ children }) {
-  const [state, dispatch] = useReducer(reducer, null, loadInitialState);
+  const [state, dispatch] = useReducer(appReducer, null, loadInitialState);
   const stateRef = useRef(state);
   stateRef.current = state;
 
@@ -69,7 +16,6 @@ export function AppProvider({ children }) {
   useEffect(() => { setItem(StorageKeys.ROUTINES, state.routines); }, [state.routines]);
   useEffect(() => { setItem(StorageKeys.WORKOUTS, state.workouts); }, [state.workouts]);
   useEffect(() => { setItem(StorageKeys.MEASUREMENTS, state.measurements); }, [state.measurements]);
-  useEffect(() => { setItem(StorageKeys.PHOTOS, state.photos); }, [state.photos]);
   useEffect(() => { setItem(StorageKeys.PERSONAL_RECORDS, state.personalRecords); }, [state.personalRecords]);
   useEffect(() => { setItem(StorageKeys.CUSTOM_EXERCISES, state.customExercises); }, [state.customExercises]);
   useEffect(() => {
@@ -79,6 +25,34 @@ export function AppProvider({ children }) {
       removeItem(StorageKeys.ACTIVE_WORKOUT);
     }
   }, [state.activeWorkout]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    getAllPhotos()
+      .then((photos) => {
+        if (!cancelled) {
+          dispatch({ type: 'SET_PHOTOS', payload: photos });
+        }
+      })
+      .catch((error) => {
+        console.error('Failed to load photos:', error);
+        if (!cancelled) {
+          dispatch({ type: 'SET_PHOTOS', payload: [] });
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!state.photosLoaded) return;
+    replaceAllPhotos(state.photos).catch((error) => {
+      console.error('Failed to persist photos:', error);
+    });
+  }, [state.photos, state.photosLoaded]);
 
   // Dark mode class management
   useEffect(() => {
@@ -361,8 +335,15 @@ export function AppProvider({ children }) {
     dispatch({ type: 'SET_ACTIVE_WORKOUT', payload: updated });
   }, []);
 
-  const reloadAll = useCallback(() => {
+  const reloadAll = useCallback(async () => {
     dispatch({ type: 'RELOAD_ALL' });
+    try {
+      const photos = await getAllPhotos();
+      dispatch({ type: 'SET_PHOTOS', payload: photos });
+    } catch (error) {
+      console.error('Failed to reload photos:', error);
+      dispatch({ type: 'SET_PHOTOS', payload: [] });
+    }
   }, []);
 
   const value = {

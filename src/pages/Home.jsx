@@ -1,47 +1,43 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Plus, Dumbbell, TrendingUp, CalendarDays, Trophy, Activity } from 'lucide-react';
+import { Plus, Dumbbell, CalendarDays, Trophy, Activity } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { fmtDate, fmtDuration, setVolume, calculateStreak } from '../lib/utils';
 
 export default function Home() {
-  const { workouts, activeWorkout, startWorkout, settings, getAllExercises } = useApp();
+  const { workouts, activeWorkout, startWorkout, settings } = useApp();
   const navigate = useNavigate();
-  const allExercises = getAllExercises();
-  const exMap = Object.fromEntries(allExercises.map((e) => [e.id, e]));
 
   const handleStart = () => {
     if (activeWorkout) {
       navigate('/active-workout');
       return;
     }
+
     startWorkout();
     navigate('/active-workout');
   };
 
   const streak = calculateStreak(workouts);
-  const thisWeekWorkouts = workouts.filter((w) => {
-    const d = new Date(w.completedAt || w.startedAt);
-    const now = new Date();
-    const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-    return d >= weekAgo;
+  const thisWeekWorkouts = workouts.filter((workout) => {
+    const completedDate = new Date(workout.completedAt || workout.startedAt);
+    const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+    return completedDate >= weekAgo;
   });
 
-  const totalVolume = thisWeekWorkouts.reduce((sum, w) =>
-    sum + w.exercises.reduce((eSum, ex) =>
-      eSum + ex.sets.reduce((sSum, s) => sSum + setVolume(s), 0), 0), 0);
+  const totalVolume = thisWeekWorkouts.reduce((sum, workout) =>
+    sum + workout.exercises.reduce((exerciseSum, exercise) =>
+      exerciseSum + exercise.sets.reduce((setSum, set) => setSum + setVolume(set), 0), 0), 0);
 
   const recentWorkouts = workouts.slice(0, 3);
 
   return (
     <div className="space-y-6 pb-4">
-      {/* Header */}
       <div className="pt-2">
         <h1 className="text-2xl font-bold">GymTracker</h1>
         <p className="text-gray-500 dark:text-gray-400 text-sm">Ready to train?</p>
       </div>
 
-      {/* Quick Start */}
       <button
         onClick={handleStart}
         className="w-full bg-gradient-to-r from-brand-500 to-brand-600 text-white rounded-2xl p-5 flex items-center gap-4 shadow-xl shadow-brand-500/20 hover:shadow-brand-500/30 active:scale-[0.98] transition-all duration-200"
@@ -56,7 +52,6 @@ export default function Home() {
         </div>
       </button>
 
-      {/* Stats Row */}
       <div className="grid grid-cols-3 gap-3">
         <div className="card text-center">
           <div className="w-8 h-8 rounded-lg bg-orange-100 dark:bg-orange-900/30 mx-auto mb-2 flex items-center justify-center">
@@ -81,7 +76,6 @@ export default function Home() {
         </div>
       </div>
 
-      {/* Recent Workouts */}
       {recentWorkouts.length > 0 && (
         <div>
           <div className="flex items-center justify-between mb-3">
@@ -91,25 +85,26 @@ export default function Home() {
             </button>
           </div>
           <div className="space-y-2">
-            {recentWorkouts.map((w) => {
-              const vol = w.exercises.reduce((eSum, ex) =>
-                eSum + ex.sets.reduce((sSum, s) => sSum + setVolume(s), 0), 0);
-              const totalSets = w.exercises.reduce((s, ex) => s + ex.sets.length, 0);
+            {recentWorkouts.map((workout) => {
+              const volume = workout.exercises.reduce((exerciseSum, exercise) =>
+                exerciseSum + exercise.sets.reduce((setSum, set) => setSum + setVolume(set), 0), 0);
+              const totalSets = workout.exercises.reduce((sum, exercise) => sum + exercise.sets.length, 0);
+
               return (
                 <button
-                  key={w.id}
-                  onClick={() => navigate(`/workout/${w.id}`)}
+                  key={workout.id}
+                  onClick={() => navigate(`/workout/${workout.id}`)}
                   className="card w-full text-left hover:border-brand-300 dark:hover:border-brand-700 transition-colors"
-                  id={`recent-workout-${w.id}`}
+                  id={`recent-workout-${workout.id}`}
                 >
                   <div className="flex items-center justify-between">
                     <div>
-                      <div className="font-semibold text-sm">{w.name}</div>
-                      <div className="text-xs text-gray-500">{fmtDate(w.completedAt || w.startedAt)}</div>
+                      <div className="font-semibold text-sm">{workout.name}</div>
+                      <div className="text-xs text-gray-500">{fmtDate(workout.completedAt || workout.startedAt)}</div>
                     </div>
                     <div className="text-right">
-                      <div className="text-xs text-gray-400">{fmtDuration(w.duration)}</div>
-                      <div className="text-xs text-gray-400">{vol.toLocaleString()} {settings.unit} · {totalSets} sets</div>
+                      <div className="text-xs text-gray-400">{fmtDuration(workout.duration)}</div>
+                      <div className="text-xs text-gray-400">{volume.toLocaleString()} {settings.unit} • {totalSets} sets</div>
                     </div>
                   </div>
                 </button>

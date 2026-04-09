@@ -5,19 +5,17 @@ import { useApp } from '../context/AppContext';
 import { fmtDate, fmtDuration, setVolume } from '../lib/utils';
 
 export default function History() {
-  const { workouts, settings, getAllExercises } = useApp();
+  const { workouts, settings } = useApp();
   const navigate = useNavigate();
-  const allExercises = getAllExercises();
-  const exMap = Object.fromEntries(allExercises.map((e) => [e.id, e]));
 
   const grouped = useMemo(() => {
     const map = {};
-    workouts.forEach((w) => {
-      const d = new Date(w.completedAt || w.startedAt);
-      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-      const label = d.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+    workouts.forEach((workout) => {
+      const date = new Date(workout.completedAt || workout.startedAt);
+      const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+      const label = date.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
       if (!map[key]) map[key] = { label, workouts: [] };
-      map[key].workouts.push(w);
+      map[key].workouts.push(workout);
     });
     return Object.entries(map).sort(([a], [b]) => b.localeCompare(a));
   }, [workouts]);
@@ -39,22 +37,23 @@ export default function History() {
           <div key={key}>
             <h2 className="text-sm font-bold text-gray-500 dark:text-gray-400 mb-2">{label}</h2>
             <div className="space-y-2">
-              {monthWorkouts.map((w) => {
-                const vol = w.exercises.reduce((eSum, ex) =>
-                  eSum + ex.sets.reduce((sSum, s) => sSum + setVolume(s), 0), 0);
-                const totalSets = w.exercises.reduce((s, ex) => s + ex.sets.length, 0);
+              {monthWorkouts.map((workout) => {
+                const volume = workout.exercises.reduce((exerciseSum, exercise) =>
+                  exerciseSum + exercise.sets.reduce((setSum, set) => setSum + setVolume(set), 0), 0);
+                const totalSets = workout.exercises.reduce((sum, exercise) => sum + exercise.sets.length, 0);
+
                 return (
                   <button
-                    key={w.id}
-                    onClick={() => navigate(`/workout/${w.id}`)}
+                    key={workout.id}
+                    onClick={() => navigate(`/workout/${workout.id}`)}
                     className="card w-full text-left hover:border-brand-300 dark:hover:border-brand-700 transition-colors flex items-center justify-between"
-                    id={`history-workout-${w.id}`}
+                    id={`history-workout-${workout.id}`}
                   >
                     <div>
-                      <div className="font-semibold text-sm">{w.name}</div>
-                      <div className="text-xs text-gray-500">{fmtDate(w.completedAt || w.startedAt)}</div>
+                      <div className="font-semibold text-sm">{workout.name}</div>
+                      <div className="text-xs text-gray-500">{fmtDate(workout.completedAt || workout.startedAt)}</div>
                       <div className="text-xs text-gray-400 mt-0.5">
-                        {fmtDuration(w.duration)} · {vol.toLocaleString()} {settings.unit} · {totalSets} sets
+                        {fmtDuration(workout.duration)} • {volume.toLocaleString()} {settings.unit} • {totalSets} sets
                       </div>
                     </div>
                     <ChevronRight size={16} className="text-gray-300" />

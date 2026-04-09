@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
 import { fmtDate } from '../lib/utils';
 import Modal from '../components/Modal';
+import Toast from '../components/Toast';
 
 export default function Photos() {
   const { photos, addPhoto, deletePhoto } = useApp();
@@ -11,10 +12,17 @@ export default function Photos() {
   const fileRef = useRef();
   const [viewPhoto, setViewPhoto] = useState(null);
   const [deleteId, setDeleteId] = useState(null);
+  const [toast, setToast] = useState(null);
 
   const handleUpload = (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    if (!file.type.startsWith('image/')) {
+      setToast({ id: Date.now(), message: 'Please choose an image file.', type: 'streak' });
+      e.target.value = '';
+      return;
+    }
+
     const reader = new FileReader();
     reader.onload = () => {
       const img = new Image();
@@ -30,9 +38,17 @@ export default function Photos() {
         canvas.width = w;
         canvas.height = h;
         const ctx = canvas.getContext('2d');
+        if (!ctx) {
+          setToast({ id: Date.now(), message: 'Photo processing failed.', type: 'streak' });
+          return;
+        }
         ctx.drawImage(img, 0, 0, w, h);
         const dataUrl = canvas.toDataURL('image/jpeg', 0.7);
         addPhoto(dataUrl);
+        setToast({ id: Date.now(), message: 'Photo saved locally.', type: 'success' });
+      };
+      img.onerror = () => {
+        setToast({ id: Date.now(), message: 'That image could not be read.', type: 'streak' });
       };
       img.src = reader.result;
     };
@@ -57,7 +73,7 @@ export default function Photos() {
           </button>
           <h1 className="text-xl font-bold">Progress Photos</h1>
         </div>
-        <button onClick={() => fileRef.current?.click()} className="btn-primary" id="upload-photo-btn">
+        <button onClick={() => fileRef.current?.click()} className="btn-primary" id="upload-photo-btn" aria-label="Upload progress photo">
           <Plus size={16} />
         </button>
         <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={handleUpload} />
@@ -104,10 +120,11 @@ export default function Photos() {
                 onClick={(e) => { e.stopPropagation(); setDeleteId(viewPhoto.id); }}
                 className="p-2 rounded-lg bg-white/10 text-white"
                 id="delete-photo-btn"
+                aria-label="Delete photo"
               >
                 <Trash2 size={18} />
               </button>
-              <button onClick={() => setViewPhoto(null)} className="p-2 rounded-lg bg-white/10 text-white" id="close-photo-view">
+              <button onClick={() => setViewPhoto(null)} className="p-2 rounded-lg bg-white/10 text-white" id="close-photo-view" aria-label="Close photo viewer">
                 <X size={18} />
               </button>
             </div>
@@ -126,6 +143,10 @@ export default function Photos() {
           <button onClick={() => setDeleteId(null)} className="btn-secondary flex-1">Cancel</button>
         </div>
       </Modal>
+
+      {toast && (
+        <Toast key={toast.id} message={toast.message} type={toast.type} onDone={() => setToast(null)} />
+      )}
     </div>
   );
 }

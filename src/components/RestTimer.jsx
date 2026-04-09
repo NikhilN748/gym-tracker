@@ -26,7 +26,11 @@ export default function RestTimer({ isOpen, onClose, defaultSeconds = 90 }) {
           clearInterval(iv);
           // Vibrate on completion
           if (settings.vibrateOnRest && navigator.vibrate) {
-            try { navigator.vibrate([200, 100, 200]); } catch {}
+            try {
+              navigator.vibrate([200, 100, 200]);
+            } catch (error) {
+              console.warn('Vibration failed:', error);
+            }
           }
           return 0;
         }

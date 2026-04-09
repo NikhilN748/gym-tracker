@@ -1,14 +1,12 @@
 import React, { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Flame, Dumbbell, TrendingUp, BarChart3, Scale, Camera, CalendarDays, ChevronRight } from 'lucide-react';
+import { Flame, TrendingUp, BarChart3, Scale, Camera, CalendarDays, ChevronRight } from 'lucide-react';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
-  PieChart, Pie, Cell, LineChart, Line, Legend
+  PieChart, Pie, Cell, LineChart, Line
 } from 'recharts';
 import { useApp } from '../context/AppContext';
-import {
-  calculateStreak, setVolume, startOfWeek, epley1RM, fmtDate
-} from '../lib/utils';
+import { calculateStreak, setVolume, startOfWeek } from '../lib/utils';
 
 const PERIODS = [
   { key: 'week', label: 'Week' },

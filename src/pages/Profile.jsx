@@ -6,8 +6,9 @@ import {
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { downloadJSON } from '../lib/utils';
-import { getAllData, importAllData, clearAllData } from '../lib/storage';
+import { createBackup, parseBackup, restoreBackup, wipeAllAppData } from '../lib/backup';
 import Modal from '../components/Modal';
+import Toast from '../components/Toast';
 
 export default function Profile() {
   const {
@@ -19,10 +20,27 @@ export default function Profile() {
   const [showClearModal, setShowClearModal] = useState(false);
   const [showImportModal, setShowImportModal] = useState(false);
   const [importData, setImportData] = useState(null);
+  const [toast, setToast] = useState(null);
+  const [isImporting, setIsImporting] = useState(false);
+  const [isExporting, setIsExporting] = useState(false);
+  const [isClearing, setIsClearing] = useState(false);
 
-  const handleExport = () => {
-    const data = getAllData();
-    downloadJSON(data, `gymtracker-backup-${new Date().toISOString().split('T')[0]}.json`);
+  const showMessage = (message, type = 'success') => {
+    setToast({ id: Date.now(), message, type });
+  };
+
+  const handleExport = async () => {
+    setIsExporting(true);
+    try {
+      const data = await createBackup();
+      downloadJSON(data, `gymtracker-backup-${new Date().toISOString().split('T')[0]}.json`);
+      showMessage('Backup exported successfully.');
+    } catch (error) {
+      console.error('Failed to export backup:', error);
+      showMessage('Could not export your backup.', 'streak');
+    } finally {
+      setIsExporting(false);
+    }
   };
 
   const handleImportFile = (e) => {
@@ -32,29 +50,49 @@ export default function Profile() {
     reader.onload = () => {
       try {
         const parsed = JSON.parse(reader.result);
+        parseBackup(parsed);
         setImportData(parsed);
         setShowImportModal(true);
-      } catch {
-        alert('Invalid JSON file');
+      } catch (error) {
+        console.error('Invalid backup file:', error);
+        showMessage('That backup file is not valid.', 'streak');
       }
     };
     reader.readAsText(file);
     e.target.value = '';
   };
 
-  const confirmImport = () => {
+  const confirmImport = async () => {
     if (importData) {
-      importAllData(importData);
-      reloadAll();
-      setShowImportModal(false);
-      setImportData(null);
+      setIsImporting(true);
+      try {
+        await restoreBackup(importData);
+        await reloadAll();
+        setShowImportModal(false);
+        setImportData(null);
+        showMessage('Backup imported successfully.');
+      } catch (error) {
+        console.error('Failed to import backup:', error);
+        showMessage('Could not import that backup.', 'streak');
+      } finally {
+        setIsImporting(false);
+      }
     }
   };
 
-  const handleClear = () => {
-    clearAllData();
-    reloadAll();
-    setShowClearModal(false);
+  const handleClear = async () => {
+    setIsClearing(true);
+    try {
+      await wipeAllAppData();
+      await reloadAll();
+      setShowClearModal(false);
+      showMessage('All app data was cleared.');
+    } catch (error) {
+      console.error('Failed to clear app data:', error);
+      showMessage('Could not clear app data.', 'streak');
+    } finally {
+      setIsClearing(false);
+    }
   };
 
   return (
@@ -117,13 +155,16 @@ export default function Profile() {
             {settings.darkMode ? <Moon size={16} className="text-gray-400" /> : <Sun size={16} className="text-gray-400" />}
             <span className="text-sm">Dark Mode</span>
           </div>
-          <button
-            onClick={() => updateSettings({ darkMode: !settings.darkMode })}
-            className={`w-12 h-6 rounded-full transition-colors relative ${settings.darkMode ? 'bg-brand-500' : 'bg-gray-300'}`}
-            id="dark-mode-toggle"
-          >
-            <div className={`absolute top-0.5 w-5 h-5 rounded-full bg-white shadow-md transition-transform ${settings.darkMode ? 'translate-x-6' : 'translate-x-0.5'}`} />
-          </button>
+            <button
+              onClick={() => updateSettings({ darkMode: !settings.darkMode })}
+              className={`w-12 h-6 rounded-full transition-colors relative ${settings.darkMode ? 'bg-brand-500' : 'bg-gray-300'}`}
+              id="dark-mode-toggle"
+              aria-label="Toggle dark mode"
+              aria-checked={settings.darkMode}
+              role="switch"
+            >
+              <div className={`absolute top-0.5 w-5 h-5 rounded-full bg-white shadow-md transition-transform ${settings.darkMode ? 'translate-x-6' : 'translate-x-0.5'}`} />
+            </button>
         </div>
 
         {/* Rest timer */}
@@ -168,13 +209,16 @@ export default function Profile() {
             <Vibrate size={16} className="text-gray-400" />
             <span className="text-sm">Vibrate on Rest End</span>
           </div>
-          <button
-            onClick={() => updateSettings({ vibrateOnRest: !settings.vibrateOnRest })}
-            className={`w-12 h-6 rounded-full transition-colors relative ${settings.vibrateOnRest ? 'bg-brand-500' : 'bg-gray-300'}`}
-            id="vibrate-toggle"
-          >
-            <div className={`absolute top-0.5 w-5 h-5 rounded-full bg-white shadow-md transition-transform ${settings.vibrateOnRest ? 'translate-x-6' : 'translate-x-0.5'}`} />
-          </button>
+            <button
+              onClick={() => updateSettings({ vibrateOnRest: !settings.vibrateOnRest })}
+              className={`w-12 h-6 rounded-full transition-colors relative ${settings.vibrateOnRest ? 'bg-brand-500' : 'bg-gray-300'}`}
+              id="vibrate-toggle"
+              aria-label="Toggle rest timer vibration"
+              aria-checked={settings.vibrateOnRest}
+              role="switch"
+            >
+              <div className={`absolute top-0.5 w-5 h-5 rounded-full bg-white shadow-md transition-transform ${settings.vibrateOnRest ? 'translate-x-6' : 'translate-x-0.5'}`} />
+            </button>
         </div>
       </div>
 
@@ -194,8 +238,8 @@ export default function Profile() {
       {/* Data */}
       <div className="card space-y-2">
         <h3 className="font-bold text-sm mb-2">Data</h3>
-        <button onClick={handleExport} className="btn-secondary w-full" id="export-data-btn">
-          <Download size={16} /> Export All Data
+        <button onClick={handleExport} className="btn-secondary w-full" id="export-data-btn" disabled={isExporting}>
+          <Download size={16} /> {isExporting ? 'Exporting...' : 'Export All Data'}
         </button>
         <button onClick={() => fileRef.current?.click()} className="btn-secondary w-full" id="import-data-btn">
           <Upload size={16} /> Import Backup
@@ -215,7 +259,9 @@ export default function Profile() {
           </p>
         </div>
         <div className="flex gap-2">
-          <button onClick={handleClear} className="btn-danger flex-1" id="confirm-clear-data">Clear Everything</button>
+          <button onClick={handleClear} className="btn-danger flex-1" id="confirm-clear-data" disabled={isClearing}>
+            {isClearing ? 'Clearing...' : 'Clear Everything'}
+          </button>
           <button onClick={() => setShowClearModal(false)} className="btn-secondary flex-1">Cancel</button>
         </div>
       </Modal>
@@ -223,13 +269,24 @@ export default function Profile() {
       {/* Import Confirmation */}
       <Modal isOpen={showImportModal} onClose={() => setShowImportModal(false)} title="Import Backup" size="sm">
         <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
-          This will replace your existing data with the imported backup. Continue?
+          This will fully replace your existing data with the imported backup, including photos. Continue?
         </p>
         <div className="flex gap-2">
-          <button onClick={confirmImport} className="btn-primary flex-1" id="confirm-import-data">Import</button>
+          <button onClick={confirmImport} className="btn-primary flex-1" id="confirm-import-data" disabled={isImporting}>
+            {isImporting ? 'Importing...' : 'Import'}
+          </button>
           <button onClick={() => setShowImportModal(false)} className="btn-secondary flex-1">Cancel</button>
         </div>
       </Modal>
+
+      {toast && (
+        <Toast
+          key={toast.id}
+          message={toast.message}
+          type={toast.type}
+          onDone={() => setToast(null)}
+        />
+      )}
     </div>
   );
 }

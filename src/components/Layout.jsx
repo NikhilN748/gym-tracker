@@ -36,6 +36,7 @@ export default function Layout({ children }) {
         <NavLink
           to="/active-workout"
           className="fixed bottom-20 left-1/2 -translate-x-1/2 z-50 bg-brand-500 text-white px-5 py-2.5 rounded-full shadow-xl shadow-brand-500/30 flex items-center gap-2 text-sm font-semibold animate-pulse hover:bg-brand-600 transition-colors"
+          aria-label="Resume active workout"
         >
           <Dumbbell size={16} />
           <span>Workout in progress</span>

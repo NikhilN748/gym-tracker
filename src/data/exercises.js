@@ -1,5 +1,3 @@
-import { uid } from '../lib/utils';
-
 const exerciseData = [
   // Chest
   { name: 'Barbell Bench Press', muscle: 'Chest', equipment: 'Barbell' },

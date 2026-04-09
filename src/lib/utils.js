@@ -81,7 +81,6 @@ export function calculateWarmupSets(workingWeight, barWeight = 45) {
 
 export function calculatePlates(targetWeight, barWeight = 45, availablePlates = null) {
   const defaultPlatesLb = [45, 35, 25, 10, 5, 2.5];
-  const defaultPlatesKg = [25, 20, 15, 10, 5, 2.5, 1.25];
   const plates = availablePlates || defaultPlatesLb;
   const perSide = (targetWeight - barWeight) / 2;
   if (perSide <= 0) return [];

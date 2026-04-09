@@ -8,14 +8,24 @@ export default function Routines() {
   const { routines, deleteRoutine, startWorkout, activeWorkout, getAllExercises } = useApp();
   const navigate = useNavigate();
   const [deleteId, setDeleteId] = useState(null);
+  const [startRoutine, setStartRoutine] = useState(null);
   const allExercises = getAllExercises();
   const exMap = Object.fromEntries(allExercises.map((e) => [e.id, e]));
 
   const handleStart = (routine) => {
     if (activeWorkout) {
-      if (!confirm('You have an active workout. Starting a new one will discard it. Continue?')) return;
+      setStartRoutine(routine);
+      return;
     }
+
     startWorkout(routine);
+    navigate('/active-workout');
+  };
+
+  const confirmStartRoutine = () => {
+    if (!startRoutine) return;
+    startWorkout(startRoutine);
+    setStartRoutine(null);
     navigate('/active-workout');
   };
 
@@ -47,16 +57,26 @@ export default function Routines() {
               <div className="flex items-center justify-between mb-3">
                 <h3 className="font-bold">{routine.name}</h3>
                 <div className="flex items-center gap-1">
-                  <button onClick={() => navigate(`/routine/${routine.id}`)} className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors" id={`edit-routine-${routine.id}`}>
+                  <button
+                    onClick={() => navigate(`/routine/${routine.id}`)}
+                    className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+                    id={`edit-routine-${routine.id}`}
+                    aria-label={`Edit ${routine.name}`}
+                  >
                     <Edit size={16} className="text-gray-400" />
                   </button>
-                  <button onClick={() => setDeleteId(routine.id)} className="p-2 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors" id={`delete-routine-${routine.id}`}>
+                  <button
+                    onClick={() => setDeleteId(routine.id)}
+                    className="p-2 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+                    id={`delete-routine-${routine.id}`}
+                    aria-label={`Delete ${routine.name}`}
+                  >
                     <Trash2 size={16} className="text-gray-400 hover:text-red-500" />
                   </button>
                 </div>
               </div>
               <div className="text-xs text-gray-500 mb-3">
-                {routine.exercises.map((ex) => exMap[ex.exerciseId]?.name || 'Unknown').join(' · ')}
+                {routine.exercises.map((ex) => exMap[ex.exerciseId]?.name || 'Unknown').join(' • ')}
               </div>
               <button
                 onClick={() => handleStart(routine)}
@@ -70,7 +90,6 @@ export default function Routines() {
         </div>
       )}
 
-      {/* Start empty workout */}
       <button
         onClick={() => {
           if (activeWorkout) {
@@ -86,12 +105,21 @@ export default function Routines() {
         <Plus size={16} /> {activeWorkout ? 'Resume Workout' : 'Start Empty Workout'}
       </button>
 
-      {/* Delete Confirmation */}
       <Modal isOpen={!!deleteId} onClose={() => setDeleteId(null)} title="Delete Routine" size="sm">
         <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">Are you sure you want to delete this routine? This cannot be undone.</p>
         <div className="flex gap-2">
           <button onClick={handleDelete} className="btn-danger flex-1" id="confirm-delete-routine">Delete</button>
           <button onClick={() => setDeleteId(null)} className="btn-secondary flex-1" id="cancel-delete-routine">Cancel</button>
+        </div>
+      </Modal>
+
+      <Modal isOpen={!!startRoutine} onClose={() => setStartRoutine(null)} title="Replace Active Workout" size="sm">
+        <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+          You already have a workout in progress. Starting this routine will replace that active session.
+        </p>
+        <div className="flex gap-2">
+          <button onClick={confirmStartRoutine} className="btn-primary flex-1" id="confirm-start-routine">Start Routine</button>
+          <button onClick={() => setStartRoutine(null)} className="btn-secondary flex-1">Cancel</button>
         </div>
       </Modal>
     </div>
